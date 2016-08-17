@@ -1161,7 +1161,7 @@ static int __init ardbeg_touch_init(void)
 			if (board_info.fab >= 0xa3) {
 				rm31080ts_t132loki_data.name_of_clock = NULL;
 				rm31080ts_t132loki_data.name_of_clock_con = NULL;
-			} else
+			} else {
 				tegra_clk_init_from_table(touch_clk_init_table);
 				rm31080a_ardbeg_spi_board[0].irq =
 					gpio_to_irq(TOUCH_GPIO_IRQ_RAYDIUM_SPI);
@@ -1170,6 +1170,7 @@ static int __init ardbeg_touch_init(void)
 					&rm31080ts_t132loki_data,
 					&rm31080a_ardbeg_spi_board[0],
 					ARRAY_SIZE(rm31080a_ardbeg_spi_board));
+			}
 		} else if (board_info.board_id == BOARD_P1761) {
 			rm31080a_tn8_spi_board[0].irq =
 				gpio_to_irq(TOUCH_GPIO_IRQ_RAYDIUM_SPI);
@@ -1475,10 +1476,10 @@ static void __init tegra_ardbeg_late_init(void)
 	else
 		ardbeg_panel_init();
 
-		/* put PEX pads into DPD mode to save additional power */
-		tegra_io_dpd_enable(&pexbias_io);
-		tegra_io_dpd_enable(&pexclk1_io);
-		tegra_io_dpd_enable(&pexclk2_io);
+	/* put PEX pads into DPD mode to save additional power */
+	tegra_io_dpd_enable(&pexbias_io);
+	tegra_io_dpd_enable(&pexclk1_io);
+	tegra_io_dpd_enable(&pexclk2_io);
 
 	if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530)
@@ -1498,12 +1499,12 @@ static void __init tegra_ardbeg_late_init(void)
 		board_info.board_id == BOARD_PM363) {
 		ardbeg_sensors_init();
 		norrin_soctherm_init();
-	}	else if (board_info.board_id == BOARD_E2548 ||
+	} else if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530) {
 		loki_sensors_init();
 		loki_fan_init();
 		loki_soctherm_init();
-	}	else {
+	} else {
 		ardbeg_sensors_init();
 		ardbeg_soctherm_init();
 	}
@@ -1610,10 +1611,12 @@ static const char * const bowmore_dt_board_compat[] = {
 	NULL
 };
 
+#ifdef CONFIG_ARCH_TEGRA_13x_SOC
 static const char * const loki_dt_board_compat[] = {
 	"nvidia,t132loki",
 	NULL
 };
+#endif
 
 static const char * const jetson_dt_board_compat[] = {
 	"nvidia,jetson-tk1",
