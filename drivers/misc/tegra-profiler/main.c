@@ -181,7 +181,7 @@ static int
 set_parameters(struct quadd_parameters *p)
 {
 	int i, err, uid = 0;
-	uid_t task_uid, current_uid;
+	kuid_t task_uid, current_uid;
 	int pmu_events_id[QUADD_MAX_COUNTERS];
 	int pl310_events_id;
 	int nr_pmu = 0, nr_pl310 = 0;
@@ -211,10 +211,9 @@ set_parameters(struct quadd_parameters *p)
 
 	current_uid = current_fsuid();
 	task_uid = task_uid(task);
-	pr_info("owner/task uids: %u/%u\n", current_uid, task_uid);
-
+	pr_info("owner/task uids: %u/%u\n", __kuid_val(current_uid), __kuid_val(task_uid));
 	if (!capable(CAP_SYS_ADMIN)) {
-		if (current_uid != task_uid) {
+		if (!uid_eq(current_uid, task_uid)) {
 			pr_info("package: %s\n", p->package_name);
 
 			uid = quadd_auth_is_debuggable((char *)p->package_name);
@@ -227,7 +226,7 @@ set_parameters(struct quadd_parameters *p)
 			}
 			pr_info("app is debuggable, uid: %u\n", uid);
 
-			if (task_uid != uid) {
+			if (__kuid_val(task_uid) != uid) {
 				pr_err("error: uids are not matched\n");
 				return -EACCES;
 			}
