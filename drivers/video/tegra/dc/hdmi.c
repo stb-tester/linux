@@ -34,6 +34,7 @@
 #include <linux/device.h>
 #include <linux/export.h>
 #include <linux/clk/tegra.h>
+#include <linux/moduleparam.h>
 
 #include <mach/dc.h>
 #include <mach/fb.h>
@@ -81,6 +82,9 @@
      addition/removal from tegra_dc_hdmi_aspect_ratios[] */
 #define TEGRA_DC_HDMI_MIN_ASPECT_RATIO_PERCENT	80
 #define TEGRA_DC_HDMI_MAX_ASPECT_RATIO_PERCENT	320
+
+static int use_constrait_workaround = 1;
+module_param_named(use_constrait_workaround, use_constrait_workaround, int, S_IRUGO | S_IWUSR);
 
 struct tegra_dc_hdmi_data *dc_hdmi;
 
@@ -842,9 +846,11 @@ bool tegra_dc_hdmi_mode_filter(const struct tegra_dc *dc,
 
 	/* Work around for modes that fail the constrait:
 	 * V_FRONT_PORCH >= V_REF_TO_SYNC + 1 */
-	if (mode->lower_margin == 1) {
+	if (use_constrait_workaround) {
+	    if (mode->lower_margin == 1) {
 		mode->lower_margin++;
 		mode->upper_margin--;
+	    }
 	}
 
 	/* even after fix-ups the mode still isn't supported */
