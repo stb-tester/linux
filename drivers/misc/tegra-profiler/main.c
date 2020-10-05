@@ -208,9 +208,9 @@ set_parameters(struct quadd_parameters *p, uid_t *debug_app_uid)
 		return -ESRCH;
 	}
 
-	pr_info("owner/task uids: %u/%u\n", current_fsuid(), task_uid(task));
+	pr_info("owner/task uids: %u/%u\n",__kuid_val(current_fsuid()), __kuid_val(task_uid(task)));
 	if (!capable(CAP_SYS_ADMIN)) {
-		if (current_fsuid() != task_uid(task)) {
+		if (!uid_eq(current_fsuid(), task_uid(task))) {
 			uid = quadd_auth_is_debuggable((char *)p->package_name);
 			if (uid < 0) {
 				pr_err("Error: QuadD security service\n");
