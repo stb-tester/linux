@@ -284,6 +284,8 @@ struct hid_item {
 #define HID_QUIRK_HIDINPUT_FORCE		0x00000080
 #define HID_QUIRK_NO_EMPTY_INPUT		0x00000100
 #define HID_QUIRK_SKIP_OUTPUT_REPORTS		0x00010000
+#define HID_QUIRK_SKIP_OUTPUT_REPORT_ID		0x00020000
+#define HID_QUIRK_NO_OUTPUT_REPORTS_ON_INTR_EP	0x00040000
 #define HID_QUIRK_FULLSPEED_INTERVAL		0x10000000
 #define HID_QUIRK_NO_INIT_REPORTS		0x20000000
 #define HID_QUIRK_NO_IGNORE			0x40000000
@@ -674,6 +676,8 @@ struct hid_driver {
  *	   shouldn't allocate anything to not leak memory
  * @request: send report request to device (e.g. feature report)
  * @wait: wait for buffered io to complete (send/recv reports)
+ * @raw_request: send raw report request to device (e.g. feature report)
+ * @output_report: send output report to device
  * @idle: send idle request to device
  */
 struct hid_ll_driver {
@@ -694,6 +698,13 @@ struct hid_ll_driver {
 			struct hid_report *report, int reqtype);
 
 	int (*wait)(struct hid_device *hdev);
+
+	int (*raw_request) (struct hid_device *hdev, unsigned char reportnum,
+			__u8 *buf, size_t len, unsigned char rtype,
+			int reqtype);
+
+	int (*output_report) (struct hid_device *hdev, __u8 *buf, size_t len);
+
 	int (*idle)(struct hid_device *hdev, int report, int idle, int reqtype);
 
 };
@@ -959,6 +970,52 @@ static inline void hid_hw_request(struct hid_device *hdev,
 {
 	if (hdev->ll_driver->request)
 		hdev->ll_driver->request(hdev, report, reqtype);
+}
+
+/**
+ * hid_hw_raw_request - send report request to device
+ *
+ * @hdev: hid device
+ * @reportnum: report ID
+ * @buf: in/out data to transfer
+ * @len: length of buf
+ * @rtype: HID report type
+ * @reqtype: HID_REQ_GET_REPORT or HID_REQ_SET_REPORT
+ *
+ * @return: count of data transfered, negative if error
+ *
+ * Same behavior as hid_hw_request, but with raw buffers instead.
+ */
+static inline int hid_hw_raw_request(struct hid_device *hdev,
+		  unsigned char reportnum, __u8 *buf,
+		  size_t len, unsigned char rtype, int reqtype)
+{
+    if (len < 1 || len > HID_MAX_BUFFER_SIZE || !buf)
+	return -EINVAL;
+
+    return hdev->ll_driver->raw_request(hdev, reportnum, buf, len,
+			    rtype, reqtype);
+}
+
+/**
+ * hid_hw_output_report - send output report to device
+ *
+ * @hdev: hid device
+ * @buf: raw data to transfer
+ * @len: length of buf
+ *
+ * @return: count of data transfered, negative if error
+ */
+static inline int hid_hw_output_report(struct hid_device *hdev, __u8 *buf,
+		    size_t len)
+{
+    if (len < 1 || len > HID_MAX_BUFFER_SIZE || !buf)
+	return -EINVAL;
+
+    if (hdev->ll_driver->output_report)
+	return hdev->ll_driver->output_report(hdev, buf, len);
+
+    return -ENOSYS;
 }
 
 /**
