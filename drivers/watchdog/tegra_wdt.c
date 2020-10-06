@@ -24,18 +24,10 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
-#include <linux/notifier.h>
 #include <linux/platform_device.h>
-#include <linux/reboot.h>
-#include <linux/slab.h>
-#include <linux/spinlock.h>
-#include <linux/uaccess.h>
 #include <linux/watchdog.h>
-#include <linux/nmi.h>
 
 /* minimum and maximum watchdog trigger timeout, in seconds */
 #define MIN_WDT_TIMEOUT			5
@@ -71,17 +63,11 @@
 
 struct tegra_wdt {
 	struct watchdog_device	wdd;
-	struct notifier_block	notifier;
 	struct resource		*res_src;
 	struct resource		*res_wdt;
-	struct resource		*res_pmc;
-	unsigned long		users;
 	void __iomem		*wdt_regs;
 	void __iomem		*tmr_regs;
-	void __iomem		*pmc_base;
-	int			irq;
 	int			tmrsrc;
-	int			timeout;
 };
 
 struct tegra_wdt *tegra_wdt[MAX_NR_CPU_WDT];
@@ -159,37 +145,6 @@ static int tegra_wdt_set_timeout(struct watchdog_device *wdd,
 
 	return 0;
 }
-
-static irqreturn_t tegra_wdt_interrupt(int irq, void *dev_id)
-{
-	unsigned i, status;
-
-	for (i = 0; i < MAX_NR_CPU_WDT; i++) {
-		if (tegra_wdt[i] == NULL)
-			continue;
-		status = readl(tegra_wdt[i]->wdt_regs + WDT_STS);
-		// TODO: Locking
-		if (watchdog_active(&tegra_wdt[i]->wdd) &&
-		    (status & WDT_INTR_STAT))
-			tegra_wdt_ping(&tegra_wdt[i]->wdd);
-	}
-
-	return IRQ_HANDLED;
-}
-
-static int tegra_wdt_notify(struct notifier_block *this,
-			    unsigned long code, void *dev)
-{
-	struct tegra_wdt *wdt = container_of(this, struct tegra_wdt, notifier);
-
-	if (code == SYS_DOWN || code == SYS_HALT) {
-		mutex_lock(&wdt->wdd.lock);
-		if (watchdog_active(&wdt->wdd))
-			tegra_wdt_stop(&wdt->wdd);
-		mutex_unlock(&wdt->wdd.lock);
-	}
-	return NOTIFY_DONE;
-}
  
 static const struct watchdog_info tegra_wdt_info = {
 	.options	= WDIOF_SETTIMEOUT |
@@ -211,7 +166,7 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 {
 	struct watchdog_device *wdd;
 	struct tegra_wdt *wdt;
-	struct resource *res_src, *res_wdt, *res_irq, *res_pmc;
+	struct resource *res_src, *res_wdt, *res_irq;
 	int ret = 0;
 
 	if ((pdev->id < -1) || (pdev->id > 0)) {
@@ -222,10 +177,9 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 	/* This is the timer base. */
 	res_src = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	res_wdt = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	res_pmc = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	res_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 
-	if (!res_src || !res_wdt || (!pdev->id && !res_irq) || !res_pmc) {
+	if (!res_src || !res_wdt || (!pdev->id && !res_irq)) {
 		dev_err(&pdev->dev, "incorrect resources\n");
 		return -ENOENT;
 	}
@@ -244,18 +198,13 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	/* Initialize struct tegra_wdt. */
-	wdt->irq = -1;
-
-	wdt->notifier.notifier_call = tegra_wdt_notify;
-
 	wdt->wdt_regs = devm_ioremap_resource(&pdev->dev, res_src);
 	wdt->tmr_regs = devm_ioremap_resource(&pdev->dev, res_wdt);
-	wdt->pmc_base = devm_ioremap_resource(&pdev->dev, res_pmc);
 
 	/* tmrsrc will be used to set WDT_CFG */
 	wdt->tmrsrc = (TMR_SRC_START + pdev->id) % 10;
 
-	if (!wdt->wdt_regs || !wdt->tmr_regs || !wdt->pmc_base) {
+	if (!wdt->wdt_regs || !wdt->tmr_regs) {
 		dev_err(&pdev->dev, "unable to map registers\n");
 		ret = -ENOMEM;
 		goto fail;
@@ -286,26 +235,8 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 	tegra_wdt_stop(&wdt->wdd);
 	writel(TIMER_PCR_INTR, wdt->tmr_regs + TIMER_PCR);
 
-	if (res_irq != NULL) {
-		ret = request_irq(res_irq->start, tegra_wdt_interrupt,
-				  IRQF_DISABLED, dev_name(&pdev->dev), wdt);
-		if (ret) {
-			dev_err(&pdev->dev, "unable to configure IRQ\n");
-			goto fail;
-		}
-
-		wdt->irq = res_irq->start;
-	}
-
 	wdt->res_src = res_src;
 	wdt->res_wdt = res_wdt;
-	wdt->res_pmc = res_pmc;
-
-	ret = register_reboot_notifier(&wdt->notifier);
-	if (ret) {
-		dev_err(&pdev->dev, "cannot register reboot notifier\n");
-		goto fail;
-	}
 
 	tegra_wdt[pdev->id] = wdt;
 
@@ -314,9 +245,6 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 		 heartbeat, nowayout);
 	return 0;
 fail:
-	if (wdt->irq != -1)
-		free_irq(wdt->irq, wdt);
-
 	return ret;
 }
 
@@ -325,10 +253,6 @@ static int tegra_wdt_remove(struct platform_device *pdev)
 	struct tegra_wdt *wdt = platform_get_drvdata(pdev);
 
 	tegra_wdt_stop(&wdt->wdd);
-
-	unregister_reboot_notifier(&wdt->notifier);
-	if (wdt->irq != -1)
-		free_irq(wdt->irq, wdt);
 
 	platform_set_drvdata(pdev, NULL);
 
