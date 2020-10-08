@@ -1,6 +1,6 @@
 GCOV_PROFILE := y
 
-subdir-ccflags-$(CONFIG_ARM) := -Werror
+subdir-ccflags-$(CONFIG_ARM) := -Werror -Wno-error=format-truncation
 #
 # Makefile for the video capture/playback device drivers.
 #
