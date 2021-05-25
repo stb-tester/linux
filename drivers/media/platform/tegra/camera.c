@@ -514,7 +514,7 @@ static int camera_new_device(struct camera_info *cam, unsigned long arg)
 
 	new_dev->chip = c_chip;
 	memset(&brd, 0, sizeof(brd));
-	strncpy(brd.type, dev_info.name, sizeof(brd.type));
+	strlcpy(brd.type, dev_info.name, sizeof(brd.type));
 	brd.addr = dev_info.addr;
 
 	mutex_lock(cam_desc.d_mutex);
