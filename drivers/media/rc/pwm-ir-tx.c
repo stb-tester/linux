@@ -106,12 +106,13 @@ static int pwm_ir_probe(struct platform_device *pdev)
 	pwm_ir->carrier = 38000;
 	pwm_ir->duty_cycle = 50;
 
-	rcdev = devm_rc_allocate_device(&pdev->dev, RC_DRIVER_IR_RAW_TX);
+	rcdev = devm_rc_allocate_device(&pdev->dev);
 	if (!rcdev)
 		return -ENOMEM;
 
 	rcdev->priv = pwm_ir;
 	rcdev->driver_name = DRIVER_NAME;
+	rcdev->driver_type = RC_DRIVER_IR_RAW_TX;
 	rcdev->device_name = DEVICE_NAME;
 	rcdev->tx_ir = pwm_ir_tx;
 	rcdev->s_tx_duty_cycle = pwm_ir_set_duty_cycle;
