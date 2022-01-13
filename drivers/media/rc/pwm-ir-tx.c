@@ -112,7 +112,7 @@ static int pwm_ir_probe(struct platform_device *pdev)
 
 	rcdev->priv = pwm_ir;
 	rcdev->driver_name = DRIVER_NAME;
-	rcdev->driver_type = RC_DRIVER_IR_RAW_TX;
+	rcdev->driver_type = RC_DRIVER_IR_RAW;
 	rcdev->device_name = DEVICE_NAME;
 	rcdev->tx_ir = pwm_ir_tx;
 	rcdev->s_tx_duty_cycle = pwm_ir_set_duty_cycle;
