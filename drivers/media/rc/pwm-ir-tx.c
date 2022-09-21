@@ -81,7 +81,7 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 		edge = ktime_add_us(edge, txbuf[i]);
 		delta = ktime_us_delta(edge, ktime_get());
 		if (delta > 0)
-			usleep_range(delta, delta + 10);
+			udelay(delta);
 	}
 
 	pwm_disable(pwm);
