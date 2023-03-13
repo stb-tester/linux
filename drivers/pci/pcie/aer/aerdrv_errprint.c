@@ -168,6 +168,14 @@ void aer_print_error(struct pci_dev *dev, struct aer_err_info *info)
 	int layer, agent;
 	int id = ((dev->bus->number << 8) | dev->devfn);
 
+	if (info->severity == AER_CORRECTABLE) {
+		static bool log_once __read_mostly;
+		if (!log_once)
+			log_once = true;
+		else
+			goto out;
+	}
+
 	if (!info->status) {
 		dev_err(&dev->dev, "PCIe Bus Error: severity=%s, type=Unaccessible, id=%04x(Unregistered Agent ID)\n",
 			aer_error_severity_string[info->severity], id);
