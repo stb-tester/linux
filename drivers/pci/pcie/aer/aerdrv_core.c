@@ -732,6 +732,8 @@ static void aer_isr_one_error(struct pcie_device *p_device,
 	 * uncorrectable error being logged. Report correctable error first.
 	 */
 	if (e_src->status & PCI_ERR_ROOT_COR_RCV) {
+		static bool log_once __read_mostly;
+
 		e_info->id = ERR_COR_ID(e_src->id);
 		e_info->severity = AER_CORRECTABLE;
 
@@ -740,7 +742,10 @@ static void aer_isr_one_error(struct pcie_device *p_device,
 		else
 			e_info->multi_error_valid = 0;
 
-		aer_print_port_info(p_device->port, e_info);
+		if (!log_once) {
+			log_once = true;
+			aer_print_port_info(p_device->port, e_info);
+		}
 
 		if (find_source_device(p_device->port, e_info))
 			aer_process_err_devices(p_device, e_info);
