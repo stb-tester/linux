@@ -62,9 +62,14 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 	struct pwm_ir *pwm_ir = dev->priv;
 	struct pwm_device *pwm = pwm_ir->pwm;
 	int i, duty, period;
-	ktime_t edge;
+	ktime_t edge, pwm_op_start, pwm_op_end;
 	long delta;
 	unsigned long flags;
+	long deltas[count + 1];
+	long long pwm_ops[count + 1];
+	char buf[400];
+	char* buf_ = buf;
+	static int n;
 
 	period = DIV_ROUND_CLOSEST(NSEC_PER_SEC, pwm_ir->carrier);
 	duty = DIV_ROUND_CLOSEST(pwm_ir->duty_cycle * period, 100);
@@ -76,10 +81,14 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 	edge = ktime_get();
 
 	for (i = 0; i < count; i++) {
+		pwm_op_start = ktime_get();
+		deltas[i] = ktime_us_delta(pwm_op_start, edge);
 		if (i % 2) // space
 			pwm_disable(pwm);
 		else
 			pwm_enable(pwm);
+		pwm_op_end = ktime_get();
+		pwm_ops[i] = ktime_to_ns(ktime_sub(pwm_op_end, pwm_op_start));
 
 		edge = ktime_add_us(edge, txbuf[i]);
 		delta = ktime_us_delta(edge, ktime_get());
@@ -87,9 +96,24 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 			udelay(delta);
 	}
 
+	pwm_op_start = ktime_get();
 	pwm_disable(pwm);
+	pwm_op_end = ktime_get();
+	deltas[i] = ktime_us_delta(pwm_op_start, edge);
+	pwm_ops[i] = ktime_to_ns(ktime_sub(pwm_op_end, pwm_op_start));
 
 	local_irq_restore(flags);
+
+	for (i = 0; i <= count; i++) {
+		buf_ += sprintf(buf_, "%+li ", deltas[i]);
+	}
+	IR_dprintk(0, "pwm_ir_tx: signal %02i: %s\n", n, buf);
+	buf_ = buf;
+	for (i = 0; i <= count; i++) {
+		buf_ += sprintf(buf_, "%+lli ", pwm_ops[i]);
+	}
+	IR_dprintk(0, "pwm_enable/disable: %s\n", buf);
+	n += 1;
 
 	return count;
 }
