@@ -64,11 +64,14 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 	int i, duty, period;
 	ktime_t edge;
 	long delta;
+	unsigned long flags;
 
 	period = DIV_ROUND_CLOSEST(NSEC_PER_SEC, pwm_ir->carrier);
 	duty = DIV_ROUND_CLOSEST(pwm_ir->duty_cycle * period, 100);
 
 	pwm_config(pwm, duty, period);
+
+	local_irq_save(flags);
 
 	edge = ktime_get();
 
@@ -85,6 +88,8 @@ static int pwm_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 	}
 
 	pwm_disable(pwm);
+
+	local_irq_restore(flags);
 
 	return count;
 }
